@@ -1,0 +1,47 @@
+name: Setup Tflocal Action
+runs:
+  using: 'node16'
+  main: 'dist/index.js'
+inputs:
+  tfe_hostname:
+    required: true
+    default: "hashicorp-v2"
+  tfe_token:
+    required: true
+  organization:
+    description: "The TFC organization that manages the specified workspace"
+    required: true
+    default: "hashicorp-v2"
+  workspace:
+    description: "The TFC workspace name that manages the tflocal configuration."
+    required: true
+  build:
+    type: boolean
+    description: "If set to true, will trigger a run that builds the tflocal instance. Destroy cannot also be set to true."
+    required: false
+    default: false
+  wait-for-run:
+    type: boolean
+    description: "If the action should wait for the run to complete."
+    required: false
+    default: false
+  destroy:
+    type: boolean
+    description: "If set to true, will trigger a run that destroys the tflocal instance. Build cannot also be set to true."
+    required: false
+    default: false
+outputs:
+  tfe_hostname:
+    description: "The hostname of the tflocal instance"
+  tfe_password:
+    description: "The seeded site-admin password for this instance that can be used to log into the UI"
+  tfe_address:
+    description: "The full URL including scheme for the tflocal instance"
+  tfe_token:
+    description: "The seeded site-admin token for this instance that can be used to authenticate API actions."
+  tfe_user1:
+    description: "The username of a seeded user for this instance"
+  tfe_user2:
+    description: "The username of a seeded user for this instance"
+
+
