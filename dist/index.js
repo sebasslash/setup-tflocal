@@ -11006,6 +11006,7 @@ class TflocalInstance {
                 case "errored":
                 case "discarded":
                     reject(new Error(`run exited unexpectedly with status: ${status}`));
+                case "planned_and_finished":
                 case "applied":
                     // run has completed successfully
                     resolve();
