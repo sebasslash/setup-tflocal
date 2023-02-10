@@ -28,6 +28,8 @@ inputs:
   auto-apply:
     type: boolean
     description: "Whether to automatically apply changes when a Terraform plan is successful."
+    required: false
+    default: true
   is-destroy:
     type: boolean
     description: "Specifies whether the run is a destroy plan run will destroy all provisioned resources."
@@ -42,4 +44,3 @@ inputs:
     required: false
   target-addrs:
     description: "Multi-line list of resource addresses that Terraform should focus its planning efforts on."
-outputs:
