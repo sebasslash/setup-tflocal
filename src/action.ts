@@ -6,11 +6,12 @@ async function run() {
   const shouldWait = core.getBooleanInput("wait-for-run");
   const skipRun = core.getBooleanInput("skip-run");
 
+  let runID = "";
   if (!skipRun) {
     core.debug(`Creating run in workspace: ${core.getInput("workspace")}`);
-    const id = await runner.createRun(opts, shouldWait);
+    runID = await runner.createRun(opts, shouldWait);
     core.debug(
-      `Run (${id}) has been created ${
+      `Run (${runID}) has been created ${
         shouldWait
           ? "and been applied successfully"
           : "but has not yet been applied"
@@ -25,6 +26,8 @@ async function run() {
     core.debug("Fetching outputs from workspace");
     await runner.outputs();
   }
+
+  core.setOutput("run-id", runID);
 }
 
 (async () => {

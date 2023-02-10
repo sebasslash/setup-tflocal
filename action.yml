@@ -44,3 +44,7 @@ inputs:
     required: false
   target-addrs:
     description: "Multi-line list of resource addresses that Terraform should focus its planning efforts on."
+outputs:
+  run-id:
+    description: "The ID of the run that was created, empty if skip-run is true."
+

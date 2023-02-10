@@ -10962,7 +10962,7 @@ class TfRunner {
                 if (waitForRun) {
                     yield this.waitForRun(runID, 10000);
                 }
-                return yield this.client.createRun(opts);
+                return runID;
             }
             catch (err) {
                 throw new Error(`Failed to create run: ${err.message}`);
@@ -10988,8 +10988,9 @@ class TfRunner {
                     }
                     core.setOutput(key, output.value);
                     if (output.sensitive) {
-                        core.setSecret(key);
+                        core.setSecret(output.value);
                     }
+                    core.debug(`Fetched output: ${key}`);
                 });
             }
             catch (err) {
@@ -11044,10 +11045,11 @@ function run() {
         const { runner, opts } = configureRunner();
         const shouldWait = core.getBooleanInput("wait-for-run");
         const skipRun = core.getBooleanInput("skip-run");
+        let runID = "";
         if (!skipRun) {
             core.debug(`Creating run in workspace: ${core.getInput("workspace")}`);
-            const id = yield runner.createRun(opts, shouldWait);
-            core.debug(`Run (${id}) has been created ${shouldWait
+            runID = yield runner.createRun(opts, shouldWait);
+            core.debug(`Run (${runID}) has been created ${shouldWait
                 ? "and been applied successfully"
                 : "but has not yet been applied"}`);
         }
@@ -11058,6 +11060,7 @@ function run() {
             core.debug("Fetching outputs from workspace");
             yield runner.outputs();
         }
+        core.setOutput("run-id", runID);
     });
 }
 (() => action_awaiter(void 0, void 0, void 0, function* () {

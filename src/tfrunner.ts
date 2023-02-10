@@ -58,11 +58,12 @@ export class TfRunner {
       opts.workspaceID = workspaceID;
 
       const runID = await this.client.createRun(opts);
+
       if (waitForRun) {
         await this.waitForRun(runID, 10000);
       }
 
-      return await this.client.createRun(opts);
+      return runID;
     } catch (err) {
       throw new Error(`Failed to create run: ${err.message}`);
     }
@@ -96,8 +97,10 @@ export class TfRunner {
 
         core.setOutput(key, output.value);
         if (output.sensitive) {
-          core.setSecret(key);
+          core.setSecret(output.value);
         }
+
+        core.debug(`Fetched output: ${key}`);
       });
     } catch (err) {
       throw new Error(`Failed reading outputs: ${err.message}`);
