@@ -1,11 +1,11 @@
-name: Setup Tflocal Action
+name: Terraform Cloud Run
 runs:
   using: 'node16'
   main: 'dist/index.js'
 inputs:
   tfe_hostname:
     required: true
-    default: "hashicorp-v2"
+    default: "app.terraform.io"
   tfe_token:
     required: true
   organization:
@@ -15,9 +15,9 @@ inputs:
   workspace:
     description: "The TFC workspace name that manages the tflocal configuration."
     required: true
-  build:
+  skip-run:
     type: boolean
-    description: "If set to true, will trigger a run that builds the tflocal instance. Destroy cannot also be set to true."
+    description: "If set to true, the action won't create a run and simply fetch outputs from the specified workspace."
     required: false
     default: false
   wait-for-run:
@@ -25,23 +25,21 @@ inputs:
     description: "If the action should wait for the run to complete."
     required: false
     default: false
-  destroy:
+  auto-apply:
     type: boolean
-    description: "If set to true, will trigger a run that destroys the tflocal instance. Build cannot also be set to true."
+    description: "Whether to automatically apply changes when a Terraform plan is successful."
+  is-destroy:
+    type: boolean
+    description: "Specifies whether the run is a destroy plan run will destroy all provisioned resources."
     required: false
     default: false
+  message:
+    required: false
+    description: "The message to associate with the run."
+    default: "Run queued by terraform-cloud-run Github action"
+  replace-addrs:
+    description: "Multi-line list of resource addresses to be replaced."
+    required: false
+  target-addrs:
+    description: "Multi-line list of resource addresses that Terraform should focus its planning efforts on."
 outputs:
-  tfe_hostname:
-    description: "The hostname of the tflocal instance"
-  tfe_password:
-    description: "The seeded site-admin password for this instance that can be used to log into the UI"
-  tfe_address:
-    description: "The full URL including scheme for the tflocal instance"
-  tfe_token:
-    description: "The seeded site-admin token for this instance that can be used to authenticate API actions."
-  tfe_user1:
-    description: "The username of a seeded user for this instance"
-  tfe_user2:
-    description: "The username of a seeded user for this instance"
-
-

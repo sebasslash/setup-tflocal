@@ -105,5 +105,37 @@
         "links": {
             "self": "/api/v2/state-versions/sv-g4rqST72reoHMM5a"
         }
-    }
+    },
+    "included": [
+        {
+            "id": "wsout-V22qbeM92xb5mw9n",
+            "type": "state-version-outputs",
+            "attributes": {
+                "name": "foo",
+                "sensitive": false,
+                "type": "string",
+                "value": "example-output"
+            }
+        },
+        {
+            "id": "wsout-ymkuRnrNFeU5wGpV",
+            "type": "state-version-outputs",
+            "attributes": {
+                "name": "bar",
+                "sensitive": true,
+                "type": "string",
+                "value": "some-sensitive-output"
+            }
+        },
+        {
+            "id": "wsout-v82BjkZnFEcscipg",
+            "type": "state-version-outputs",
+            "attributes": {
+                "name": "foobar",
+                "sensitive": false,
+                "type": "array",
+                "value": ["some", "arr", "val"]
+            }
+        }
+    ]
 }

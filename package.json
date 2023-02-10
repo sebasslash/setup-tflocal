@@ -1,7 +1,7 @@
 {
-  "name": "setup-tflocal",
+  "name": "terraform-cloud-run",
   "version": "0.1.0",
-  "description": "A Github action to manage tflocal instances",
+  "description": "A Github action to execute a run on TFC/E workspaces and fetch the workspace outputs.",
   "main": "dist/index.js",
   "scripts": {
     "build": "ncc build src/action.ts -o dist --license licenses.txt",

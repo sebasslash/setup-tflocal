@@ -10824,10 +10824,13 @@ class TFEClient {
                 const attributes = {
                     message: opts.message,
                     "auto-apply": opts.autoApply,
-                    "is-destroy": opts.destroy,
+                    "is-destroy": opts.isDestroy,
                 };
-                if (opts.replaceAddrs && opts.replaceAddrs.length > 0) {
+                if (opts.replaceAddrs) {
                     attributes["replace-addrs"] = opts.replaceAddrs;
+                }
+                if (opts.targetAddrs) {
+                    attributes["target-addrs"] = opts.targetAddrs;
                 }
                 const resp = yield this._client.post("runs", {
                     data: {
@@ -10848,7 +10851,6 @@ class TFEClient {
             catch (err) {
                 throw new Error(`Failed to create run on workspace ${opts.workspaceID}: ${err.message}`);
             }
-            return null;
         });
     }
     readWorkspaceID(organization, workspace) {
@@ -10878,24 +10880,44 @@ class TFEClient {
     readStateVersionOutputs(workspaceID) {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                const url = `workspaces/${external_querystring_namespaceObject.escape(workspaceID)}/current-state-version`;
-                const resp = yield this._client.get(url, {
+                const resp = yield this.readCurrentSV(workspaceID, {
                     params: {
                         include: "outputs",
                     },
                 });
-                const outputs = resp.data["data"]["relationships"]["outputs"]["data"].map(x => x["attributes"]);
-                return outputs;
+                return resp.data["included"].map(x => x["attributes"]);
             }
             catch (err) {
-                throw new Error(`Failed to latest state version outputs in workspace ${workspaceID}: ${err.message}`);
+                throw new Error(`Failed to read latest state version outputs in workspace ${workspaceID}: ${err.message}`);
+            }
+        });
+    }
+    readResourcesProcessed(workspaceID) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const resp = yield this.readCurrentSV(workspaceID, {});
+                return resp.data["data"]["attributes"]["resources-processed"];
+            }
+            catch (err) {
+                throw new Error(`Failed to`);
+            }
+        });
+    }
+    readCurrentSV(workspaceID, opts) {
+        return __awaiter(this, void 0, void 0, function* () {
+            try {
+                const url = `workspaces/${external_querystring_namespaceObject.escape(workspaceID)}/current-state-version`;
+                return yield this._client.get(url, opts);
+            }
+            catch (err) {
+                throw new Error(`Failed reading current state version: ${err.message}`);
             }
         });
     }
 }
 
-;// CONCATENATED MODULE: ./src/instance.ts
-var instance_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+;// CONCATENATED MODULE: ./src/tfrunner.ts
+var tfrunner_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -10906,47 +10928,52 @@ var instance_awaiter = (undefined && undefined.__awaiter) || function (thisArg, 
 };
 
 
-class TflocalInstance {
+function configureRunner() {
+    const runner = new TfRunner(core.getInput("organization"), core.getInput("workspace"), core.getInput("tfe_hostname"), core.getInput("tfe_token"));
+    const opts = {
+        autoApply: core.getBooleanInput("auto-apply"),
+        isDestroy: core.getBooleanInput("is-destroy"),
+        message: core.getInput("message"),
+        workspaceID: "",
+    };
+    if (core.getMultilineInput("replace-addrs").length > 0) {
+        opts.replaceAddrs = core.getMultilineInput("replace-addrs");
+    }
+    if (core.getMultilineInput("target-addrs").length > 0) {
+        opts.targetAddrs = core.getMultilineInput("target-addrs");
+    }
+    return {
+        runner,
+        opts,
+    };
+}
+class TfRunner {
     constructor(organization, workspace, hostname, token) {
-        this.defaultRunMsg = "Run queued via setup-tflocal Github action";
-        this.instanceAddr = "module.tflocal.module.tfbox.aws_instance.tfbox";
-        this.tokenAddr = "module.tflocal.var.tflocal_cloud_admin_token";
         this.organization = organization;
         this.workspace = workspace;
         this.client = new TFEClient(hostname, token);
     }
-    build(shouldWait) {
-        return instance_awaiter(this, void 0, void 0, function* () {
+    createRun(opts, waitForRun) {
+        return tfrunner_awaiter(this, void 0, void 0, function* () {
             try {
-                const runID = yield this.createRun();
-                if (shouldWait) {
+                const workspaceID = yield this.client.readWorkspaceID(this.organization, this.workspace);
+                opts.workspaceID = workspaceID;
+                const runID = yield this.client.createRun(opts);
+                if (waitForRun) {
                     yield this.waitForRun(runID, 10000);
                 }
-                return runID;
+                return yield this.client.createRun(opts);
             }
             catch (err) {
-                throw new Error(`Failed building tflocal instance: ${err.message}`);
-            }
-        });
-    }
-    destroy(shouldWait) {
-        return instance_awaiter(this, void 0, void 0, function* () {
-            try {
-                const runID = yield this.createRun(true);
-                if (shouldWait) {
-                    yield this.waitForRun(runID, 10000);
-                }
-                return runID;
-            }
-            catch (err) {
-                throw new Error(`Failed destroying tflocal instance: ${err.message}`);
+                throw new Error(`Failed to create run: ${err.message}`);
             }
         });
     }
     outputs() {
-        return instance_awaiter(this, void 0, void 0, function* () {
+        return tfrunner_awaiter(this, void 0, void 0, function* () {
             try {
                 const workspaceID = yield this.client.readWorkspaceID(this.organization, this.workspace);
+                yield this.waitForOutputs(workspaceID, 2000);
                 const svOutputs = yield this.client.readStateVersionOutputs(workspaceID);
                 if (svOutputs.length == 0) {
                     throw new Error(`state version in workspace ${workspaceID} has no available outputs.`);
@@ -10956,50 +10983,22 @@ class TflocalInstance {
                     if (key == "ngrok_domain") {
                         key = "tfe_hostname";
                     }
+                    if (typeof output.value != "string") {
+                        output.value = JSON.stringify(output.value);
+                    }
                     core.setOutput(key, output.value);
                     if (output.sensitive) {
                         core.setSecret(key);
                     }
                 });
-                // Set TFE_USER
-                core.setOutput("tfe_user1", "tfe-provider-user1");
-                core.setOutput("tfe_user2", "tfe-provider-user2");
             }
             catch (err) {
                 throw new Error(`Failed reading outputs: ${err.message}`);
             }
         });
     }
-    createRun(isDestroy = false) {
-        return instance_awaiter(this, void 0, void 0, function* () {
-            try {
-                const workspaceID = yield this.client.readWorkspaceID(this.organization, this.workspace);
-                const opts = {
-                    autoApply: true,
-                    destroy: isDestroy,
-                    message: this.defaultRunMsg,
-                    workspaceID: workspaceID,
-                };
-                // If the run is not set to destroy, we'll add the replace addresses. For now,
-                // these are default values.
-                if (!isDestroy) {
-                    opts.replaceAddrs = [this.tokenAddr, this.instanceAddr];
-                }
-                const runID = yield this.client.createRun({
-                    autoApply: true,
-                    destroy: isDestroy,
-                    message: this.defaultRunMsg,
-                    workspaceID: workspaceID,
-                });
-                return runID;
-            }
-            catch (err) {
-                throw new Error(`Failed to create run: ${err.message}`);
-            }
-        });
-    }
     waitForRun(runID, interval) {
-        const poll = (resolve, reject) => instance_awaiter(this, void 0, void 0, function* () {
+        const poll = (resolve, reject) => tfrunner_awaiter(this, void 0, void 0, function* () {
             const status = yield this.client.readRunStatus(runID);
             switch (status) {
                 case "canceled":
@@ -11013,6 +11012,16 @@ class TflocalInstance {
                 default:
                     setTimeout(poll, interval, resolve, reject);
             }
+        });
+        return new Promise(poll);
+    }
+    waitForOutputs(workspaceID, interval) {
+        const poll = (resolve, reject) => tfrunner_awaiter(this, void 0, void 0, function* () {
+            const resourcesProcessed = yield this.client.readResourcesProcessed(workspaceID);
+            if (resourcesProcessed) {
+                resolve();
+            }
+            setTimeout(poll, interval, resolve, reject);
         });
         return new Promise(poll);
     }
@@ -11030,32 +11039,24 @@ var action_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _a
 };
 
 
-function initInstance() {
-    return new TflocalInstance(core.getInput("organization"), core.getInput("workspace"), core.getInput("tfe_hostname"), core.getInput("tfe_token"));
-}
 function run() {
     return action_awaiter(this, void 0, void 0, function* () {
-        const instance = initInstance();
-        const shouldBuild = core.getBooleanInput("build");
-        const shouldDestroy = core.getBooleanInput("destroy");
+        const { runner, opts } = configureRunner();
         const shouldWait = core.getBooleanInput("wait-for-run");
-        // We cannot set build and destroy to be true
-        if (shouldBuild && shouldDestroy) {
-            throw new Error("You cannot set build and destroy to true in the same step.");
+        const skipRun = core.getBooleanInput("skip-run");
+        if (!skipRun) {
+            core.debug(`Creating run in workspace: ${core.getInput("workspace")}`);
+            const id = yield runner.createRun(opts, shouldWait);
+            core.debug(`Run (${id}) has been created ${shouldWait
+                ? "and been applied successfully"
+                : "but has not yet been applied"}`);
         }
-        if (shouldBuild) {
-            core.debug("Building tflocal instance");
-            yield instance.build(shouldWait);
-        }
-        // We shouldn't bother fetching outputs if the instance will be destroyed
-        // or if the instance is set to build but we don't wait for it to complete.
-        if (!shouldDestroy || (shouldBuild && shouldWait)) {
-            core.debug("Fetching outputs from tflocal instance");
-            yield instance.outputs();
-        }
-        if (shouldDestroy) {
-            core.debug("Destroying tflocal instance");
-            yield instance.destroy(shouldWait);
+        // Outputs are only fetched if:
+        // The action creates an apply run and waits for it to complete
+        // The action simply does not create a run (i.e skip-run: true)
+        if (skipRun || (!opts.isDestroy && shouldWait)) {
+            core.debug("Fetching outputs from workspace");
+            yield runner.outputs();
         }
     });
 }

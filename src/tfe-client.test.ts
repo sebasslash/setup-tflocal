@@ -52,7 +52,7 @@ describe("TFE Client", () => {
   test("returns run ID when run is created", done => {
     mockClient.client
       .createRun({
-        destroy: false,
+        isDestroy: false,
         autoApply: true,
         message: "Some message!",
         workspaceID: "ws-foobar1234",

@@ -2,11 +2,12 @@ import axios, { AxiosInstance } from "axios";
 import * as querystring from "querystring";
 
 export interface RunCreateOptions {
-  destroy: boolean;
+  autoApply: boolean;
+  isDestroy: boolean;
   message: string;
   workspaceID: string;
-  autoApply: boolean;
   replaceAddrs?: string[];
+  targetAddrs?: string[];
 }
 
 export interface Output {
@@ -41,11 +42,15 @@ export class TFEClient {
       const attributes = {
         message: opts.message,
         "auto-apply": opts.autoApply,
-        "is-destroy": opts.destroy,
+        "is-destroy": opts.isDestroy,
       };
 
-      if (opts.replaceAddrs && opts.replaceAddrs.length > 0) {
+      if (opts.replaceAddrs) {
         attributes["replace-addrs"] = opts.replaceAddrs;
+      }
+
+      if (opts.targetAddrs) {
+        attributes["target-addrs"] = opts.targetAddrs;
       }
 
       const resp = await this._client.post("runs", {
@@ -69,7 +74,6 @@ export class TFEClient {
         `Failed to create run on workspace ${opts.workspaceID}: ${err.message}`
       );
     }
-    return null;
   }
 
   public async readWorkspaceID(
@@ -103,23 +107,36 @@ export class TFEClient {
 
   public async readStateVersionOutputs(workspaceID: string): Promise<Output[]> {
     try {
-      const url = `workspaces/${querystring.escape(
-        workspaceID
-      )}/current-state-version`;
-      const resp = await this._client.get(url, {
+      const resp = await this.readCurrentSV(workspaceID, {
         params: {
           include: "outputs",
         },
       });
-
-      const outputs: Output[] = resp.data["data"]["relationships"]["outputs"][
-        "data"
-      ].map(x => x["attributes"] as Output);
-      return outputs;
+      return resp.data["included"].map(x => x["attributes"] as Output);
     } catch (err) {
       throw new Error(
-        `Failed to latest state version outputs in workspace ${workspaceID}: ${err.message}`
+        `Failed to read latest state version outputs in workspace ${workspaceID}: ${err.message}`
       );
+    }
+  }
+
+  public async readResourcesProcessed(workspaceID: string): Promise<boolean> {
+    try {
+      const resp = await this.readCurrentSV(workspaceID, {});
+      return resp.data["data"]["attributes"]["resources-processed"] as boolean;
+    } catch (err) {
+      throw new Error(`Failed to`);
+    }
+  }
+
+  private async readCurrentSV(workspaceID: string, opts: any) {
+    try {
+      const url = `workspaces/${querystring.escape(
+        workspaceID
+      )}/current-state-version`;
+      return await this._client.get(url, opts);
+    } catch (err) {
+      throw new Error(`Failed reading current state version: ${err.message}`);
     }
   }
 }

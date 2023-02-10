@@ -1,30 +1,41 @@
-import { TflocalInstance } from "./instance";
+import { TfRunner } from "./tfrunner";
 import { MockTFEClient, newMockTFEClient } from "./tfe-client.test";
 import * as core from "@actions/core";
+import { RunCreateOptions } from "./tfe-client";
 
-export interface MockTflocalInstance {
-  tflocal: TflocalInstance;
+export interface MockTfRunner {
+  tflocal: TfRunner;
   tfeClient: MockTFEClient;
+  defaultRunOpts: RunCreateOptions;
 }
 
-export const newMockTflocalInstance = (): MockTflocalInstance => {
-  const tflocal = new TflocalInstance(
+export const newMockTflocalInstance = (): MockTfRunner => {
+  const tflocal = new TfRunner(
     "hashicorp",
     "foobar",
     "app.terraform.io",
     "foobar"
   );
+
   const tfeClient = newMockTFEClient();
   Reflect.set(tflocal, "client", tfeClient.client);
+
+  const defaultRunOpts: RunCreateOptions = {
+    autoApply: true,
+    isDestroy: false,
+    message: "Foobar",
+    workspaceID: tfeClient.defaultWorkspaceID,
+  };
 
   return {
     tflocal,
     tfeClient,
+    defaultRunOpts,
   };
 };
 
-describe("Tflocal instance", () => {
-  let mockInstance: MockTflocalInstance;
+describe("Tfrunner", () => {
+  let mockInstance: MockTfRunner;
   jest.useFakeTimers();
 
   beforeAll(() => {
@@ -35,25 +46,19 @@ describe("Tflocal instance", () => {
     jest.restoreAllMocks();
   });
 
-  test("builds instance but does not wait", async () => {
+  test("creates run but does not wait", async () => {
     try {
-      const runID = await mockInstance.tflocal.build(false);
+      const runID = await mockInstance.tflocal.createRun(
+        mockInstance.defaultRunOpts,
+        false
+      );
       expect(runID).toBe(mockInstance.tfeClient.defaultRunID);
     } catch (err) {
       console.log(err);
     }
   });
 
-  test("destroys instance but does not wait", async () => {
-    try {
-      const runID = await mockInstance.tflocal.destroy(false);
-      expect(runID).toBe(mockInstance.tfeClient.defaultRunID);
-    } catch (err) {
-      console.log(err);
-    }
-  });
-
-  test("builds instance and waits for run", async () => {
+  test("creates run and waits for run", async () => {
     const mockRunProgress = setTimeout(() => {
       const run = require("./test-fixtures/read-run.json");
       // Lets modify the status of the run to "applied" as to
@@ -70,7 +75,7 @@ describe("Tflocal instance", () => {
     }, 5000);
 
     mockInstance.tflocal
-      .build(true)
+      .createRun(mockInstance.defaultRunOpts, true)
       .then(runID => {
         expect(runID).toBe(mockInstance.tfeClient.defaultRunID);
       })
@@ -105,7 +110,7 @@ describe("Tflocal instance", () => {
     }, 5000);
 
     mockInstance.tflocal
-      .build(true)
+      .createRun(mockInstance.defaultRunOpts, true)
       .catch(err => {
         expect(err.message).toMatch(
           /run exited unexpectedly with status: errored/
@@ -123,6 +128,20 @@ describe("Tflocal instance", () => {
   });
 
   test("fetches outputs from tflocal instance", async () => {
+    const mockResourcesProcessed = setTimeout(() => {
+      const sv = require("./test-fixtures/sv-with-outputs.json");
+      // Lets modify the status of the state version to "resources-processed: true" as to
+      // mimic that TFC has successfully parsed the SV generated from the run.
+      sv["data"]["attributes"]["resources-processed"] = true;
+
+      // Update the mock to return the updated state version
+      mockInstance.tfeClient.adapter
+        .onGet(
+          `https://app.terraform.io/api/v2/workspaces/${mockInstance.tfeClient.defaultWorkspaceID}/current-state-version`
+        )
+        .reply(200, sv);
+    }, 3000);
+
     let outputs = {};
     let secrets = [];
     const outputSpy = jest.spyOn(core, "setOutput");
@@ -132,14 +151,23 @@ describe("Tflocal instance", () => {
     const secretSpy = jest.spyOn(core, "setSecret");
     secretSpy.mockImplementation(name => secrets.push(name));
 
-    await mockInstance.tflocal.outputs();
-    // These outputs are derived from test-fixtures/sv-with-outputs.json
-    // The output names/value are hardcoded in the response.
-    expect(outputs["foo"]).toEqual("example-output");
-    expect(outputs["bar"]).toEqual("some-sensitive-output");
-    expect(outputs["foobar"]).toEqual(["some", "arr", "val"]);
-    expect(outputs["tfe_user1"]).toEqual("tfe-provider-user1");
-    expect(outputs["tfe_user2"]).toEqual("tfe-provider-user2");
-    expect(secrets).toContain("bar");
+    mockInstance.tflocal
+      .outputs()
+      .then(() => {
+        // These outputs are derived from test-fixtures/sv-with-outputs.json
+        // The output names/value are hardcoded in the response.
+        expect(outputs["foo"]).toEqual("example-output");
+        expect(outputs["bar"]).toEqual("some-sensitive-output");
+        expect(outputs["foobar"]).toEqual(
+          JSON.stringify(["some", "arr", "val"])
+        );
+        expect(secrets).toContain("bar");
+      })
+      .finally(() => clearTimeout(mockResourcesProcessed));
+
+    for (let i = 0; i < 10; i++) {
+      jest.advanceTimersByTime(1000);
+      await Promise.resolve();
+    }
   });
 });
