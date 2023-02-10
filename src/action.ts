@@ -33,6 +33,7 @@ async function run() {
 (async () => {
   try {
     await run();
+    core.debug("Await run done");
   } catch (err) {
     core.setFailed(err.message);
   }

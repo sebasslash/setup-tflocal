@@ -11066,6 +11066,7 @@ function run() {
 (() => action_awaiter(void 0, void 0, void 0, function* () {
     try {
         yield run();
+        core.debug("Await run done");
     }
     catch (err) {
         core.setFailed(err.message);
