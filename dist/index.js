@@ -11065,7 +11065,7 @@ function run() {
 }
 (() => action_awaiter(void 0, void 0, void 0, function* () {
     try {
-        yield run();
+        yield core.group("terraform-cloud-run", () => run());
         core.debug("Await run done");
     }
     catch (err) {

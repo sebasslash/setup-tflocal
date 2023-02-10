@@ -161,7 +161,7 @@ describe("Tfrunner", () => {
         expect(outputs["foobar"]).toEqual(
           JSON.stringify(["some", "arr", "val"])
         );
-        expect(secrets).toContain("bar");
+        expect(secrets).toContain("some-sensitive-output");
       })
       .finally(() => clearTimeout(mockResourcesProcessed));
 

@@ -1,7 +1,7 @@
 import * as core from "@actions/core";
 import { configureRunner } from "./tfrunner";
 
-async function run() {
+async function run(): Promise<void> {
   const { runner, opts } = configureRunner();
   const shouldWait = core.getBooleanInput("wait-for-run");
   const skipRun = core.getBooleanInput("skip-run");
@@ -32,7 +32,7 @@ async function run() {
 
 (async () => {
   try {
-    await run();
+    await core.group("terraform-cloud-run", () => run())
     core.debug("Await run done");
   } catch (err) {
     core.setFailed(err.message);
