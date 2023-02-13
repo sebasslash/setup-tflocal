@@ -4,7 +4,7 @@ runs:
   main: 'dist/index.js'
 inputs:
   tfe_hostname:
-    required: true
+    required: false
     default: "app.terraform.io"
   tfe_token:
     required: true

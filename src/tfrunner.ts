@@ -12,7 +12,7 @@ export function configureRunner() {
   const opts: RunCreateOptions = {
     autoApply: core.getBooleanInput("auto-apply"),
     isDestroy: core.getBooleanInput("is-destroy"),
-    message: core.getInput("message"),
+message: core.getInput("message"),
     workspaceID: "",
   };
 

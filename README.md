@@ -18,10 +18,10 @@ Workspace outputs that are marked as sensitive will be given a mask and set as a
 
 ### Inputs
 
-- `tfe_hostname` (**Required**): The hostname of the TFC/E instance which holds the workspace that manages your tflocal instance.
 - `tfe_token` (**Required**): The token of the TFC/E instance which holds the workspace that manages your tflocal instance.
 - `organization` (**Required**): The TFC/E organization that manages the specified workspace.
 - `workspace` (**Required**): The name of the TFC/E workspace that manages the tflocal configuration.
+- `tfe_hostname` (**Optional**): The hostname of the TFC/E instance which holds the workspace that manages your tflocal instance. Defaults to `app.terraform.io`.
 - `skip-run` (**Optional**): If set to `true`, will omit creating a run on the workspace and simply fetch the workspace outputs. Defaults to `false`.
 - `wait-for-run` (**Optional**): If set to `true`, runs executed by this action will poll and await completion. Defaults to `false`.
 
