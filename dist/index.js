@@ -10899,7 +10899,7 @@ class TFEClient {
                 return resp.data["data"]["attributes"]["resources-processed"];
             }
             catch (err) {
-                throw new Error(`Failed to`);
+                throw new Error(`Failed to read resources processed: ${err.message}`);
             }
         });
     }
@@ -10960,7 +10960,7 @@ class TfRunner {
                 opts.workspaceID = workspaceID;
                 const runID = yield this.client.createRun(opts);
                 if (waitForRun) {
-                    yield this.waitForRun(runID, 10000);
+                    yield this.waitForRun(runID, 5000);
                 }
                 return runID;
             }
@@ -10999,32 +10999,34 @@ class TfRunner {
         });
     }
     waitForRun(runID, interval) {
-        const poll = (resolve, reject) => tfrunner_awaiter(this, void 0, void 0, function* () {
+        return tfrunner_awaiter(this, void 0, void 0, function* () {
             const status = yield this.client.readRunStatus(runID);
             switch (status) {
                 case "canceled":
                 case "errored":
                 case "discarded":
-                    reject(new Error(`run exited unexpectedly with status: ${status}`));
+                    throw new Error(`run exited unexpectedly with status: ${status}`);
                 case "planned_and_finished":
                 case "applied":
                     // run has completed successfully
-                    resolve();
+                    return;
                 default:
-                    setTimeout(poll, interval, resolve, reject);
+                    core.debug(`Waiting for run ${runID} to complete, polling`);
+                    yield new Promise(resolve => setTimeout(resolve, interval));
+                    yield this.waitForRun(runID, interval);
             }
         });
-        return new Promise(poll);
     }
     waitForOutputs(workspaceID, interval) {
-        const poll = (resolve, reject) => tfrunner_awaiter(this, void 0, void 0, function* () {
+        return tfrunner_awaiter(this, void 0, void 0, function* () {
             const resourcesProcessed = yield this.client.readResourcesProcessed(workspaceID);
-            if (resourcesProcessed) {
-                resolve();
+            if (!resourcesProcessed) {
+                core.debug(`Waiting for workspace outputs to be ready, polling`);
+                yield new Promise(resolve => setTimeout(resolve, interval));
+                yield this.waitForOutputs(workspaceID, interval);
             }
-            setTimeout(poll, interval, resolve, reject);
+            return;
         });
-        return new Promise(poll);
     }
 }
 
@@ -11066,7 +11068,6 @@ function run() {
 (() => action_awaiter(void 0, void 0, void 0, function* () {
     try {
         yield core.group("terraform-cloud-run", () => run());
-        core.debug("Await run done");
     }
     catch (err) {
         core.setFailed(err.message);

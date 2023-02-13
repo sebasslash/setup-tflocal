@@ -4,13 +4,13 @@ import * as core from "@actions/core";
 import { RunCreateOptions } from "./tfe-client";
 
 export interface MockTfRunner {
-  tflocal: TfRunner;
+  runner: TfRunner;
   tfeClient: MockTFEClient;
   defaultRunOpts: RunCreateOptions;
 }
 
-export const newMockTflocalInstance = (): MockTfRunner => {
-  const tflocal = new TfRunner(
+export const newMockTfRunner = (): MockTfRunner => {
+  const runner = new TfRunner(
     "hashicorp",
     "foobar",
     "app.terraform.io",
@@ -18,7 +18,7 @@ export const newMockTflocalInstance = (): MockTfRunner => {
   );
 
   const tfeClient = newMockTFEClient();
-  Reflect.set(tflocal, "client", tfeClient.client);
+  Reflect.set(runner, "client", tfeClient.client);
 
   const defaultRunOpts: RunCreateOptions = {
     autoApply: true,
@@ -28,18 +28,18 @@ export const newMockTflocalInstance = (): MockTfRunner => {
   };
 
   return {
-    tflocal,
+    runner,
     tfeClient,
     defaultRunOpts,
   };
 };
 
 describe("Tfrunner", () => {
-  let mockInstance: MockTfRunner;
+  let mockRunner: MockTfRunner;
   jest.useFakeTimers();
 
   beforeAll(() => {
-    mockInstance = newMockTflocalInstance();
+    mockRunner = newMockTfRunner();
   });
 
   afterAll(() => {
@@ -48,11 +48,11 @@ describe("Tfrunner", () => {
 
   test("creates run but does not wait", async () => {
     try {
-      const runID = await mockInstance.tflocal.createRun(
-        mockInstance.defaultRunOpts,
+      const runID = await mockRunner.runner.createRun(
+        mockRunner.defaultRunOpts,
         false
       );
-      expect(runID).toBe(mockInstance.tfeClient.defaultRunID);
+      expect(runID).toBe(mockRunner.tfeClient.defaultRunID);
     } catch (err) {
       console.log(err);
     }
@@ -67,17 +67,17 @@ describe("Tfrunner", () => {
 
       // Update the existing endpoint mock to return the updated
       // run object
-      mockInstance.tfeClient.adapter
+      mockRunner.tfeClient.adapter
         .onGet(
-          `https://app.terraform.io/api/v2/runs/${mockInstance.tfeClient.defaultRunID}`
+          `https://app.terraform.io/api/v2/runs/${mockRunner.tfeClient.defaultRunID}`
         )
         .replyOnce(200, run);
     }, 5000);
 
-    mockInstance.tflocal
-      .createRun(mockInstance.defaultRunOpts, true)
+    mockRunner.runner
+      .createRun(mockRunner.defaultRunOpts, true)
       .then(runID => {
-        expect(runID).toBe(mockInstance.tfeClient.defaultRunID);
+        expect(runID).toBe(mockRunner.tfeClient.defaultRunID);
       })
       .catch(err => {
         expect(err).toBeNull();
@@ -93,7 +93,7 @@ describe("Tfrunner", () => {
     }
   });
 
-  test("builds instance and waits, but run errors", async () => {
+  test("creates run and waits, but run errors", async () => {
     const mockRunProgress = setTimeout(() => {
       const run = require("./test-fixtures/read-run.json");
       // Lets modify the status of the run to "errored" as to
@@ -102,15 +102,15 @@ describe("Tfrunner", () => {
 
       // Update the existing endpoint mock to return the updated
       // run object
-      mockInstance.tfeClient.adapter
+      mockRunner.tfeClient.adapter
         .onGet(
-          `https://app.terraform.io/api/v2/runs/${mockInstance.tfeClient.defaultRunID}`
+          `https://app.terraform.io/api/v2/runs/${mockRunner.tfeClient.defaultRunID}`
         )
         .replyOnce(200, run);
     }, 5000);
 
-    mockInstance.tflocal
-      .createRun(mockInstance.defaultRunOpts, true)
+    mockRunner.runner
+      .createRun(mockRunner.defaultRunOpts, true)
       .catch(err => {
         expect(err.message).toMatch(
           /run exited unexpectedly with status: errored/
@@ -127,7 +127,7 @@ describe("Tfrunner", () => {
     }
   });
 
-  test("fetches outputs from tflocal instance", async () => {
+  test("fetches outputs from TFC workspace", async () => {
     const mockResourcesProcessed = setTimeout(() => {
       const sv = require("./test-fixtures/sv-with-outputs.json");
       // Lets modify the status of the state version to "resources-processed: true" as to
@@ -135,9 +135,9 @@ describe("Tfrunner", () => {
       sv["data"]["attributes"]["resources-processed"] = true;
 
       // Update the mock to return the updated state version
-      mockInstance.tfeClient.adapter
+      mockRunner.tfeClient.adapter
         .onGet(
-          `https://app.terraform.io/api/v2/workspaces/${mockInstance.tfeClient.defaultWorkspaceID}/current-state-version`
+          `https://app.terraform.io/api/v2/workspaces/${mockRunner.tfeClient.defaultWorkspaceID}/current-state-version`
         )
         .reply(200, sv);
     }, 3000);
@@ -151,7 +151,7 @@ describe("Tfrunner", () => {
     const secretSpy = jest.spyOn(core, "setSecret");
     secretSpy.mockImplementation(name => secrets.push(name));
 
-    mockInstance.tflocal
+    mockRunner.runner
       .outputs()
       .then(() => {
         // These outputs are derived from test-fixtures/sv-with-outputs.json

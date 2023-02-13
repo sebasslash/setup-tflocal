@@ -125,7 +125,7 @@ export class TFEClient {
       const resp = await this.readCurrentSV(workspaceID, {});
       return resp.data["data"]["attributes"]["resources-processed"] as boolean;
     } catch (err) {
-      throw new Error(`Failed to`);
+      throw new Error(`Failed to read resources processed: ${err.message}`);
     }
   }
 

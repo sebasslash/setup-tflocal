@@ -60,7 +60,7 @@ export class TfRunner {
       const runID = await this.client.createRun(opts);
 
       if (waitForRun) {
-        await this.waitForRun(runID, 10000);
+        await this.waitForRun(runID, 5000);
       }
 
       return runID;
@@ -107,38 +107,35 @@ export class TfRunner {
     }
   }
 
-  private waitForRun(runID: string, interval: number) {
-    const poll = async (resolve: any, reject: any) => {
-      const status = await this.client.readRunStatus(runID);
-      switch (status) {
-        case "canceled":
-        case "errored":
-        case "discarded":
-          reject(new Error(`run exited unexpectedly with status: ${status}`));
-        case "planned_and_finished":
-        case "applied":
-          // run has completed successfully
-          resolve();
-        default:
-          setTimeout(poll, interval, resolve, reject);
-      }
-    };
-
-    return new Promise(poll);
+  private async waitForRun(runID: string, interval: number) {
+    const status = await this.client.readRunStatus(runID);
+    switch (status) {
+      case "canceled":
+      case "errored":
+      case "discarded":
+        throw new Error(`run exited unexpectedly with status: ${status}`);
+      case "planned_and_finished":
+      case "applied":
+        // run has completed successfully
+        return;
+      default:
+        core.debug(`Waiting for run ${runID} to complete, polling`);
+        await new Promise(resolve => setTimeout(resolve, interval));
+        await this.waitForRun(runID, interval);
+    }
   }
 
-  private waitForOutputs(workspaceID: string, interval: number) {
-    const poll = async (resolve: any, reject: any) => {
-      const resourcesProcessed = await this.client.readResourcesProcessed(
-        workspaceID
-      );
-      if (resourcesProcessed) {
-        resolve();
-      }
+  private async waitForOutputs(workspaceID: string, interval: number) {
+    const resourcesProcessed = await this.client.readResourcesProcessed(
+      workspaceID
+    );
 
-      setTimeout(poll, interval, resolve, reject);
-    };
+    if (!resourcesProcessed) {
+      core.debug(`Waiting for workspace outputs to be ready, polling`);
+      await new Promise(resolve => setTimeout(resolve, interval));
+      await this.waitForOutputs(workspaceID, interval);
+    }
 
-    return new Promise(poll);
+    return;
   }
 }

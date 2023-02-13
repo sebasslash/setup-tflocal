@@ -32,8 +32,7 @@ async function run(): Promise<void> {
 
 (async () => {
   try {
-    await core.group("terraform-cloud-run", () => run())
-    core.debug("Await run done");
+    await core.group("terraform-cloud-run", () => run());
   } catch (err) {
     core.setFailed(err.message);
   }
