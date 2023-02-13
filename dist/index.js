@@ -10980,9 +10980,6 @@ class TfRunner {
                 }
                 svOutputs.forEach(output => {
                     let key = output.name;
-                    if (key == "ngrok_domain") {
-                        key = "tfe_hostname";
-                    }
                     if (typeof output.value != "string") {
                         output.value = JSON.stringify(output.value);
                     }

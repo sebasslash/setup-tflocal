@@ -12,7 +12,7 @@ export function configureRunner() {
   const opts: RunCreateOptions = {
     autoApply: core.getBooleanInput("auto-apply"),
     isDestroy: core.getBooleanInput("is-destroy"),
-message: core.getInput("message"),
+    message: core.getInput("message"),
     workspaceID: "",
   };
 
@@ -87,9 +87,6 @@ export class TfRunner {
 
       svOutputs.forEach(output => {
         let key = output.name;
-        if (key == "ngrok_domain") {
-          key = "tfe_hostname";
-        }
 
         if (typeof output.value != "string") {
           output.value = JSON.stringify(output.value);
