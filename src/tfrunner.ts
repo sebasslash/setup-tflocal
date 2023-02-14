@@ -3,37 +3,11 @@
  * SPDX-License-Identifier: MPL-2.0
  */
 
-import { RunCreateOptions, TFEClient } from "./tfe-client";
-import * as core from "@actions/core";
+import { TFEClient, RunCreateOptions, Output } from "./tfe-client";
+import { DefaultLogger as log } from "./logger";
 
-export function configureRunner() {
-  const runner = new TfRunner(
-    core.getInput("organization"),
-    core.getInput("workspace"),
-    core.getInput("tfe_hostname"),
-    core.getInput("tfe_token")
-  );
-
-  const opts: RunCreateOptions = {
-    autoApply: core.getBooleanInput("auto-apply"),
-    isDestroy: core.getBooleanInput("is-destroy"),
-    message: core.getInput("message"),
-    workspaceID: "",
-  };
-
-  if (core.getMultilineInput("replace-addrs").length > 0) {
-    opts.replaceAddrs = core.getMultilineInput("replace-addrs");
-  }
-
-  if (core.getMultilineInput("target-addrs").length > 0) {
-    opts.targetAddrs = core.getMultilineInput("target-addrs");
-  }
-
-  return {
-    runner,
-    opts,
-  };
-}
+const pollIntervalRunMs = 3000;
+const pollIntervalOutputsMs = 1000;
 
 export class TfRunner {
   private client: TFEClient;
@@ -65,7 +39,7 @@ export class TfRunner {
       const runID = await this.client.createRun(opts);
 
       if (waitForRun) {
-        await this.waitForRun(runID, 5000);
+        await this.waitForRun(runID);
       }
 
       return runID;
@@ -74,70 +48,57 @@ export class TfRunner {
     }
   }
 
-  public async outputs() {
+  public async outputs(): Promise<Output[]> {
     try {
       const workspaceID = await this.client.readWorkspaceID(
         this.organization,
         this.workspace
       );
 
-      await this.waitForOutputs(workspaceID, 2000);
-
-      const svOutputs = await this.client.readStateVersionOutputs(workspaceID);
-      if (svOutputs.length == 0) {
-        throw new Error(
-          `state version in workspace ${workspaceID} has no available outputs.`
-        );
-      }
-
-      svOutputs.forEach(output => {
-        let key = output.name;
-
-        if (typeof output.value != "string") {
-          output.value = JSON.stringify(output.value);
-        }
-
-        core.setOutput(key, output.value);
-        if (output.sensitive) {
-          core.setSecret(output.value);
-        }
-
-        core.debug(`Fetched output: ${key}`);
-      });
+      await this.waitForOutputs(workspaceID, pollIntervalOutputsMs);
+      return await this.client.readStateVersionOutputs(workspaceID);
     } catch (err) {
       throw new Error(`Failed reading outputs: ${err.message}`);
     }
   }
 
-  private async waitForRun(runID: string, interval: number) {
-    const status = await this.client.readRunStatus(runID);
-    switch (status) {
-      case "canceled":
-      case "errored":
-      case "discarded":
-        throw new Error(`run exited unexpectedly with status: ${status}`);
-      case "planned_and_finished":
-      case "applied":
-        // run has completed successfully
-        return;
-      default:
-        core.debug(`Waiting for run ${runID} to complete, polling`);
-        await new Promise(resolve => setTimeout(resolve, interval));
-        await this.waitForRun(runID, interval);
+  private async waitForRun(runID: string) {
+    while (true) {
+      const status = await this.client.readRunStatus(runID);
+
+      switch (status) {
+        case "canceled":
+        case "errored":
+        case "discarded":
+          throw new Error(`run exited unexpectedly with status: ${status}`);
+        case "planned_and_finished":
+        case "applied":
+          // run has completed successfully
+          return;
+        default:
+          log.debug(`Waiting for run ${runID} to complete, polling`);
+          await this.sleep(pollIntervalRunMs);
+      }
     }
   }
 
   private async waitForOutputs(workspaceID: string, interval: number) {
-    const resourcesProcessed = await this.client.readResourcesProcessed(
-      workspaceID
-    );
+    while (true) {
+      const resourcesProcessed = await this.client.readResourcesProcessed(
+        workspaceID
+      );
 
-    if (!resourcesProcessed) {
-      core.debug(`Waiting for workspace outputs to be ready, polling`);
-      await new Promise(resolve => setTimeout(resolve, interval));
-      await this.waitForOutputs(workspaceID, interval);
+      if (!resourcesProcessed) {
+        log.debug(`Waiting for workspace outputs to be ready, polling`);
+        await this.sleep(interval);
+        continue;
+      }
+
+      return;
     }
+  }
 
-    return;
+  private async sleep(interval: number): Promise<void> {
+    await new Promise(resolve => setTimeout(resolve, interval));
   }
 }
