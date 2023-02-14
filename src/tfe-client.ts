@@ -4,7 +4,17 @@
  */
 
 import axios, { AxiosInstance } from "axios";
+import axiosRetry from "axios-retry";
 import * as querystring from "querystring";
+
+export interface Output {
+  name: string;
+  sensitive: boolean;
+  type: string;
+  value: any;
+}
+
+type OutputData = [{ attributes: Output }];
 
 export interface RunCreateOptions {
   autoApply: boolean;
@@ -13,13 +23,6 @@ export interface RunCreateOptions {
   workspaceID: string;
   replaceAddrs?: string[];
   targetAddrs?: string[];
-}
-
-export interface Output {
-  name: string;
-  sensitive: boolean;
-  type: string;
-  value: any;
 }
 
 export class TFEClient {
@@ -40,11 +43,15 @@ export class TFEClient {
         "Content-Type": "application/vnd.api+json",
       },
     });
+    axiosRetry(this._client, {
+      retries: 3,
+      retryDelay: axiosRetry.exponentialDelay,
+    });
   }
 
   public async createRun(opts: RunCreateOptions): Promise<string> {
     try {
-      const attributes = {
+      const attributes: { [attr: string]: any } = {
         message: opts.message,
         "auto-apply": opts.autoApply,
         "is-destroy": opts.isDestroy,
@@ -117,7 +124,7 @@ export class TFEClient {
           include: "outputs",
         },
       });
-      return resp.data["included"].map(x => x["attributes"] as Output);
+      return (resp.data["included"] as OutputData).map(x => x.attributes);
     } catch (err) {
       throw new Error(
         `Failed to read latest state version outputs in workspace ${workspaceID}: ${err.message}`

@@ -50,4 +50,5 @@ inputs:
 outputs:
   run-id:
     description: "The ID of the run that was created, empty if skip-run is true."
-
+  workspace-outputs:
+    description: "The terraform workspace outputs"

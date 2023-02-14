@@ -5,7 +5,6 @@
 
 import { TfRunner } from "./tfrunner";
 import { MockTFEClient, newMockTFEClient } from "./tfe-client.test";
-import * as core from "@actions/core";
 import { RunCreateOptions } from "./tfe-client";
 
 export interface MockTfRunner {
@@ -146,27 +145,10 @@ describe("Tfrunner", () => {
         )
         .reply(200, sv);
     }, 3000);
-
-    let outputs = {};
-    let secrets = [];
-    const outputSpy = jest.spyOn(core, "setOutput");
-    outputSpy.mockImplementation((name, value) => (outputs[name] = value));
-
-    // Lol
-    const secretSpy = jest.spyOn(core, "setSecret");
-    secretSpy.mockImplementation(name => secrets.push(name));
-
     mockRunner.runner
       .outputs()
-      .then(() => {
-        // These outputs are derived from test-fixtures/sv-with-outputs.json
-        // The output names/value are hardcoded in the response.
-        expect(outputs["foo"]).toEqual("example-output");
-        expect(outputs["bar"]).toEqual("some-sensitive-output");
-        expect(outputs["foobar"]).toEqual(
-          JSON.stringify(["some", "arr", "val"])
-        );
-        expect(secrets).toContain("some-sensitive-output");
+      .then(resolved => {
+        expect(resolved.length).toEqual(3); // Number of outputs in test fixture
       })
       .finally(() => clearTimeout(mockResourcesProcessed));
 

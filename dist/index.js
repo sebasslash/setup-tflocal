@@ -4567,6 +4567,53 @@ module.exports = (flag, argv = process.argv) => {
 
 /***/ }),
 
+/***/ 841:
+/***/ ((module) => {
+
+"use strict";
+
+
+const denyList = new Set([
+	'ENOTFOUND',
+	'ENETUNREACH',
+
+	// SSL errors from https://github.com/nodejs/node/blob/fc8e3e2cdc521978351de257030db0076d79e0ab/src/crypto/crypto_common.cc#L301-L328
+	'UNABLE_TO_GET_ISSUER_CERT',
+	'UNABLE_TO_GET_CRL',
+	'UNABLE_TO_DECRYPT_CERT_SIGNATURE',
+	'UNABLE_TO_DECRYPT_CRL_SIGNATURE',
+	'UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY',
+	'CERT_SIGNATURE_FAILURE',
+	'CRL_SIGNATURE_FAILURE',
+	'CERT_NOT_YET_VALID',
+	'CERT_HAS_EXPIRED',
+	'CRL_NOT_YET_VALID',
+	'CRL_HAS_EXPIRED',
+	'ERROR_IN_CERT_NOT_BEFORE_FIELD',
+	'ERROR_IN_CERT_NOT_AFTER_FIELD',
+	'ERROR_IN_CRL_LAST_UPDATE_FIELD',
+	'ERROR_IN_CRL_NEXT_UPDATE_FIELD',
+	'OUT_OF_MEM',
+	'DEPTH_ZERO_SELF_SIGNED_CERT',
+	'SELF_SIGNED_CERT_IN_CHAIN',
+	'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+	'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+	'CERT_CHAIN_TOO_LONG',
+	'CERT_REVOKED',
+	'INVALID_CA',
+	'PATH_LENGTH_EXCEEDED',
+	'INVALID_PURPOSE',
+	'CERT_UNTRUSTED',
+	'CERT_REJECTED',
+	'HOSTNAME_MISMATCH'
+]);
+
+// TODO: Use `error?.code` when targeting Node.js 14
+module.exports = error => !denyList.has(error && error.code);
+
+
+/***/ }),
+
 /***/ 7426:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
@@ -10790,6 +10837,289 @@ axios.default = axios;
 // this module should only have a default export
 /* harmony default export */ const lib_axios = (axios);
 
+// EXTERNAL MODULE: ./node_modules/is-retry-allowed/index.js
+var is_retry_allowed = __nccwpck_require__(841);
+;// CONCATENATED MODULE: ./node_modules/axios-retry/lib/esm/index.js
+function asyncGeneratorStep(gen, resolve, reject, _next, _throw, key, arg) { try { var info = gen[key](arg); var value = info.value; } catch (error) { reject(error); return; } if (info.done) { resolve(value); } else { Promise.resolve(value).then(_next, _throw); } }
+
+function _asyncToGenerator(fn) { return function () { var self = this, args = arguments; return new Promise(function (resolve, reject) { var gen = fn.apply(self, args); function _next(value) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "next", value); } function _throw(err) { asyncGeneratorStep(gen, resolve, reject, _next, _throw, "throw", err); } _next(undefined); }); }; }
+
+function ownKeys(object, enumerableOnly) { var keys = Object.keys(object); if (Object.getOwnPropertySymbols) { var symbols = Object.getOwnPropertySymbols(object); if (enumerableOnly) { symbols = symbols.filter(function (sym) { return Object.getOwnPropertyDescriptor(object, sym).enumerable; }); } keys.push.apply(keys, symbols); } return keys; }
+
+function _objectSpread(target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i] != null ? arguments[i] : {}; if (i % 2) { ownKeys(Object(source), true).forEach(function (key) { _defineProperty(target, key, source[key]); }); } else if (Object.getOwnPropertyDescriptors) { Object.defineProperties(target, Object.getOwnPropertyDescriptors(source)); } else { ownKeys(Object(source)).forEach(function (key) { Object.defineProperty(target, key, Object.getOwnPropertyDescriptor(source, key)); }); } } return target; }
+
+function _defineProperty(obj, key, value) { if (key in obj) { Object.defineProperty(obj, key, { value: value, enumerable: true, configurable: true, writable: true }); } else { obj[key] = value; } return obj; }
+
+
+var namespace = 'axios-retry';
+/**
+ * @param  {Error}  error
+ * @return {boolean}
+ */
+
+function isNetworkError(error) {
+  return !error.response && Boolean(error.code) && // Prevents retrying cancelled requests
+  error.code !== 'ECONNABORTED' && // Prevents retrying timed out requests
+  is_retry_allowed(error); // Prevents retrying unsafe errors
+}
+var SAFE_HTTP_METHODS = ['get', 'head', 'options'];
+var IDEMPOTENT_HTTP_METHODS = SAFE_HTTP_METHODS.concat(['put', 'delete']);
+/**
+ * @param  {Error}  error
+ * @return {boolean}
+ */
+
+function isRetryableError(error) {
+  return error.code !== 'ECONNABORTED' && (!error.response || error.response.status >= 500 && error.response.status <= 599);
+}
+/**
+ * @param  {Error}  error
+ * @return {boolean}
+ */
+
+function isSafeRequestError(error) {
+  if (!error.config) {
+    // Cannot determine if the request can be retried
+    return false;
+  }
+
+  return isRetryableError(error) && SAFE_HTTP_METHODS.indexOf(error.config.method) !== -1;
+}
+/**
+ * @param  {Error}  error
+ * @return {boolean}
+ */
+
+function isIdempotentRequestError(error) {
+  if (!error.config) {
+    // Cannot determine if the request can be retried
+    return false;
+  }
+
+  return isRetryableError(error) && IDEMPOTENT_HTTP_METHODS.indexOf(error.config.method) !== -1;
+}
+/**
+ * @param  {Error}  error
+ * @return {boolean}
+ */
+
+function isNetworkOrIdempotentRequestError(error) {
+  return isNetworkError(error) || isIdempotentRequestError(error);
+}
+/**
+ * @return {number} - delay in milliseconds, always 0
+ */
+
+function noDelay() {
+  return 0;
+}
+/**
+ * @param  {number} [retryNumber=0]
+ * @return {number} - delay in milliseconds
+ */
+
+
+function exponentialDelay() {
+  var retryNumber = arguments.length > 0 && arguments[0] !== undefined ? arguments[0] : 0;
+  var delay = Math.pow(2, retryNumber) * 100;
+  var randomSum = delay * 0.2 * Math.random(); // 0-20% of the delay
+
+  return delay + randomSum;
+}
+/**
+ * Initializes and returns the retry state for the given request/config
+ * @param  {AxiosRequestConfig} config
+ * @return {Object}
+ */
+
+function getCurrentState(config) {
+  var currentState = config[namespace] || {};
+  currentState.retryCount = currentState.retryCount || 0;
+  config[namespace] = currentState;
+  return currentState;
+}
+/**
+ * Returns the axios-retry options for the current request
+ * @param  {AxiosRequestConfig} config
+ * @param  {AxiosRetryConfig} defaultOptions
+ * @return {AxiosRetryConfig}
+ */
+
+
+function getRequestOptions(config, defaultOptions) {
+  return _objectSpread(_objectSpread({}, defaultOptions), config[namespace]);
+}
+/**
+ * @param  {Axios} axios
+ * @param  {AxiosRequestConfig} config
+ */
+
+
+function fixConfig(axios, config) {
+  if (axios.defaults.agent === config.agent) {
+    delete config.agent;
+  }
+
+  if (axios.defaults.httpAgent === config.httpAgent) {
+    delete config.httpAgent;
+  }
+
+  if (axios.defaults.httpsAgent === config.httpsAgent) {
+    delete config.httpsAgent;
+  }
+}
+/**
+ * Checks retryCondition if request can be retried. Handles it's retruning value or Promise.
+ * @param  {number} retries
+ * @param  {Function} retryCondition
+ * @param  {Object} currentState
+ * @param  {Error} error
+ * @return {boolean}
+ */
+
+
+function shouldRetry(_x, _x2, _x3, _x4) {
+  return _shouldRetry.apply(this, arguments);
+}
+/**
+ * Adds response interceptors to an axios instance to retry requests failed due to network issues
+ *
+ * @example
+ *
+ * import axios from 'axios';
+ *
+ * axiosRetry(axios, { retries: 3 });
+ *
+ * axios.get('http://example.com/test') // The first request fails and the second returns 'ok'
+ *   .then(result => {
+ *     result.data; // 'ok'
+ *   });
+ *
+ * // Exponential back-off retry delay between requests
+ * axiosRetry(axios, { retryDelay : axiosRetry.exponentialDelay});
+ *
+ * // Custom retry delay
+ * axiosRetry(axios, { retryDelay : (retryCount) => {
+ *   return retryCount * 1000;
+ * }});
+ *
+ * // Also works with custom axios instances
+ * const client = axios.create({ baseURL: 'http://example.com' });
+ * axiosRetry(client, { retries: 3 });
+ *
+ * client.get('/test') // The first request fails and the second returns 'ok'
+ *   .then(result => {
+ *     result.data; // 'ok'
+ *   });
+ *
+ * // Allows request-specific configuration
+ * client
+ *   .get('/test', {
+ *     'axios-retry': {
+ *       retries: 0
+ *     }
+ *   })
+ *   .catch(error => { // The first request fails
+ *     error !== undefined
+ *   });
+ *
+ * @param {Axios} axios An axios instance (the axios object or one created from axios.create)
+ * @param {Object} [defaultOptions]
+ * @param {number} [defaultOptions.retries=3] Number of retries
+ * @param {boolean} [defaultOptions.shouldResetTimeout=false]
+ *        Defines if the timeout should be reset between retries
+ * @param {Function} [defaultOptions.retryCondition=isNetworkOrIdempotentRequestError]
+ *        A function to determine if the error can be retried
+ * @param {Function} [defaultOptions.retryDelay=noDelay]
+ *        A function to determine the delay between retry requests
+ * @param {Function} [defaultOptions.onRetry=()=>{}]
+ *        A function to get notified when a retry occurs
+ */
+
+
+function _shouldRetry() {
+  _shouldRetry = _asyncToGenerator(function* (retries, retryCondition, currentState, error) {
+    var shouldRetryOrPromise = currentState.retryCount < retries && retryCondition(error); // This could be a promise
+
+    if (typeof shouldRetryOrPromise === 'object') {
+      try {
+        var shouldRetryPromiseResult = yield shouldRetryOrPromise; // keep return true unless shouldRetryPromiseResult return false for compatibility
+
+        return shouldRetryPromiseResult !== false;
+      } catch (_err) {
+        return false;
+      }
+    }
+
+    return shouldRetryOrPromise;
+  });
+  return _shouldRetry.apply(this, arguments);
+}
+
+function axiosRetry(axios, defaultOptions) {
+  axios.interceptors.request.use(config => {
+    var currentState = getCurrentState(config);
+    currentState.lastRequestTime = Date.now();
+    return config;
+  });
+  axios.interceptors.response.use(null, /*#__PURE__*/function () {
+    var _ref = _asyncToGenerator(function* (error) {
+      var {
+        config
+      } = error; // If we have no information to retry the request
+
+      if (!config) {
+        return Promise.reject(error);
+      }
+
+      var {
+        retries = 3,
+        retryCondition = isNetworkOrIdempotentRequestError,
+        retryDelay = noDelay,
+        shouldResetTimeout = false,
+        onRetry = () => {}
+      } = getRequestOptions(config, defaultOptions);
+      var currentState = getCurrentState(config);
+
+      if (yield shouldRetry(retries, retryCondition, currentState, error)) {
+        currentState.retryCount += 1;
+        var delay = retryDelay(currentState.retryCount, error); // Axios fails merging this configuration to the default configuration because it has an issue
+        // with circular structures: https://github.com/mzabriskie/axios/issues/370
+
+        fixConfig(axios, config);
+
+        if (!shouldResetTimeout && config.timeout && currentState.lastRequestTime) {
+          var lastRequestDuration = Date.now() - currentState.lastRequestTime;
+          var timeout = config.timeout - lastRequestDuration - delay;
+
+          if (timeout <= 0) {
+            return Promise.reject(error);
+          }
+
+          config.timeout = timeout;
+        }
+
+        config.transformRequest = [data => data];
+        onRetry(currentState.retryCount, error, config);
+        return new Promise(resolve => setTimeout(() => resolve(axios(config)), delay));
+      }
+
+      return Promise.reject(error);
+    });
+
+    return function (_x5) {
+      return _ref.apply(this, arguments);
+    };
+  }());
+} // Compatibility with CommonJS
+
+axiosRetry.isNetworkError = isNetworkError;
+axiosRetry.isSafeRequestError = isSafeRequestError;
+axiosRetry.isIdempotentRequestError = isIdempotentRequestError;
+axiosRetry.isNetworkOrIdempotentRequestError = isNetworkOrIdempotentRequestError;
+axiosRetry.exponentialDelay = exponentialDelay;
+axiosRetry.isRetryableError = isRetryableError;
+//# sourceMappingURL=index.js.map
 ;// CONCATENATED MODULE: external "querystring"
 const external_querystring_namespaceObject = require("querystring");
 ;// CONCATENATED MODULE: ./src/tfe-client.ts
@@ -10808,6 +11138,7 @@ var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argume
 };
 
 
+
 class TFEClient {
     constructor(hostname, token) {
         this.token = token;
@@ -10820,6 +11151,10 @@ class TFEClient {
                 Accept: "application/vnd.api+json",
                 "Content-Type": "application/vnd.api+json",
             },
+        });
+        axiosRetry(this._client, {
+            retries: 3,
+            retryDelay: axiosRetry.exponentialDelay,
         });
     }
     createRun(opts) {
@@ -10889,7 +11224,7 @@ class TFEClient {
                         include: "outputs",
                     },
                 });
-                return resp.data["included"].map(x => x["attributes"]);
+                return resp.data["included"].map(x => x.attributes);
             }
             catch (err) {
                 throw new Error(`Failed to read latest state version outputs in workspace ${workspaceID}: ${err.message}`);
@@ -10920,6 +11255,10 @@ class TFEClient {
     }
 }
 
+;// CONCATENATED MODULE: ./src/logger.ts
+
+const DefaultLogger = core;
+
 ;// CONCATENATED MODULE: ./src/tfrunner.ts
 /**
  * Copyright (c) HashiCorp, Inc.
@@ -10936,25 +11275,8 @@ var tfrunner_awaiter = (undefined && undefined.__awaiter) || function (thisArg, 
 };
 
 
-function configureRunner() {
-    const runner = new TfRunner(core.getInput("organization"), core.getInput("workspace"), core.getInput("tfe_hostname"), core.getInput("tfe_token"));
-    const opts = {
-        autoApply: core.getBooleanInput("auto-apply"),
-        isDestroy: core.getBooleanInput("is-destroy"),
-        message: core.getInput("message"),
-        workspaceID: "",
-    };
-    if (core.getMultilineInput("replace-addrs").length > 0) {
-        opts.replaceAddrs = core.getMultilineInput("replace-addrs");
-    }
-    if (core.getMultilineInput("target-addrs").length > 0) {
-        opts.targetAddrs = core.getMultilineInput("target-addrs");
-    }
-    return {
-        runner,
-        opts,
-    };
-}
+const pollIntervalRunMs = 3000;
+const pollIntervalOutputsMs = 1000;
 class TfRunner {
     constructor(organization, workspace, hostname, token) {
         this.organization = organization;
@@ -10968,7 +11290,7 @@ class TfRunner {
                 opts.workspaceID = workspaceID;
                 const runID = yield this.client.createRun(opts);
                 if (waitForRun) {
-                    yield this.waitForRun(runID, 5000);
+                    yield this.waitForRun(runID);
                 }
                 return runID;
             }
@@ -10981,56 +11303,50 @@ class TfRunner {
         return tfrunner_awaiter(this, void 0, void 0, function* () {
             try {
                 const workspaceID = yield this.client.readWorkspaceID(this.organization, this.workspace);
-                yield this.waitForOutputs(workspaceID, 2000);
-                const svOutputs = yield this.client.readStateVersionOutputs(workspaceID);
-                if (svOutputs.length == 0) {
-                    throw new Error(`state version in workspace ${workspaceID} has no available outputs.`);
-                }
-                svOutputs.forEach(output => {
-                    let key = output.name;
-                    if (typeof output.value != "string") {
-                        output.value = JSON.stringify(output.value);
-                    }
-                    core.setOutput(key, output.value);
-                    if (output.sensitive) {
-                        core.setSecret(output.value);
-                    }
-                    core.debug(`Fetched output: ${key}`);
-                });
+                yield this.waitForOutputs(workspaceID, pollIntervalOutputsMs);
+                return yield this.client.readStateVersionOutputs(workspaceID);
             }
             catch (err) {
                 throw new Error(`Failed reading outputs: ${err.message}`);
             }
         });
     }
-    waitForRun(runID, interval) {
+    waitForRun(runID) {
         return tfrunner_awaiter(this, void 0, void 0, function* () {
-            const status = yield this.client.readRunStatus(runID);
-            switch (status) {
-                case "canceled":
-                case "errored":
-                case "discarded":
-                    throw new Error(`run exited unexpectedly with status: ${status}`);
-                case "planned_and_finished":
-                case "applied":
-                    // run has completed successfully
-                    return;
-                default:
-                    core.debug(`Waiting for run ${runID} to complete, polling`);
-                    yield new Promise(resolve => setTimeout(resolve, interval));
-                    yield this.waitForRun(runID, interval);
+            while (true) {
+                const status = yield this.client.readRunStatus(runID);
+                switch (status) {
+                    case "canceled":
+                    case "errored":
+                    case "discarded":
+                        throw new Error(`run exited unexpectedly with status: ${status}`);
+                    case "planned_and_finished":
+                    case "applied":
+                        // run has completed successfully
+                        return;
+                    default:
+                        DefaultLogger.debug(`Waiting for run ${runID} to complete, polling`);
+                        yield this.sleep(pollIntervalRunMs);
+                }
             }
         });
     }
     waitForOutputs(workspaceID, interval) {
         return tfrunner_awaiter(this, void 0, void 0, function* () {
-            const resourcesProcessed = yield this.client.readResourcesProcessed(workspaceID);
-            if (!resourcesProcessed) {
-                core.debug(`Waiting for workspace outputs to be ready, polling`);
-                yield new Promise(resolve => setTimeout(resolve, interval));
-                yield this.waitForOutputs(workspaceID, interval);
+            while (true) {
+                const resourcesProcessed = yield this.client.readResourcesProcessed(workspaceID);
+                if (!resourcesProcessed) {
+                    DefaultLogger.debug(`Waiting for workspace outputs to be ready, polling`);
+                    yield this.sleep(interval);
+                    continue;
+                }
+                return;
             }
-            return;
+        });
+    }
+    sleep(interval) {
+        return tfrunner_awaiter(this, void 0, void 0, function* () {
+            yield new Promise(resolve => setTimeout(resolve, interval));
         });
     }
 }
@@ -11051,25 +11367,59 @@ var action_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _a
 };
 
 
+
+function configureRunner() {
+    const runner = new TfRunner(core.getInput("organization"), core.getInput("workspace"), core.getInput("tfe_hostname"), core.getInput("tfe_token"));
+    return runner;
+}
+function configureRunOptions() {
+    const opts = {
+        autoApply: core.getBooleanInput("auto-apply"),
+        isDestroy: core.getBooleanInput("is-destroy"),
+        message: core.getInput("message"),
+        workspaceID: "",
+    };
+    if (core.getMultilineInput("replace-addrs").length > 0) {
+        opts.replaceAddrs = core.getMultilineInput("replace-addrs");
+    }
+    if (core.getMultilineInput("target-addrs").length > 0) {
+        opts.targetAddrs = core.getMultilineInput("target-addrs");
+    }
+    return opts;
+}
 function run() {
     return action_awaiter(this, void 0, void 0, function* () {
-        const { runner, opts } = configureRunner();
+        const runner = configureRunner();
         const shouldWait = core.getBooleanInput("wait-for-run");
         const skipRun = core.getBooleanInput("skip-run");
+        const opts = configureRunOptions();
         let runID = "";
         if (!skipRun) {
-            core.debug(`Creating run in workspace: ${core.getInput("workspace")}`);
+            DefaultLogger.debug(`Creating run in workspace: ${core.getInput("workspace")}`);
             runID = yield runner.createRun(opts, shouldWait);
-            core.debug(`Run (${runID}) has been created ${shouldWait
+            DefaultLogger.debug(`Run (${runID}) has been created ${shouldWait
                 ? "and been applied successfully"
                 : "but has not yet been applied"}`);
         }
         // Outputs are only fetched if:
         // The action creates an apply run and waits for it to complete
         // The action simply does not create a run (i.e skip-run: true)
-        if (skipRun || (!opts.isDestroy && shouldWait)) {
-            core.debug("Fetching outputs from workspace");
-            yield runner.outputs();
+        if (!opts.isDestroy) {
+            DefaultLogger.debug("Fetching outputs from workspace");
+            const workspaceOutputs = yield runner.outputs();
+            // Tell github actions which values are secret and should be redacted
+            workspaceOutputs.forEach(output => {
+                if (output.sensitive) {
+                    core.setSecret(output.value);
+                }
+            });
+            // Transform outputs to a name/value dictionary
+            const outputsAsObject = workspaceOutputs.reduce((acc, output) => {
+                acc[output.name] = output.value;
+                return acc;
+            }, {});
+            // Transform Output
+            core.setOutput("workspace-outputs", JSON.stringify(outputsAsObject));
         }
         core.setOutput("run-id", runID);
     });
