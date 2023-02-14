@@ -33,7 +33,7 @@ Outputs are fetched from a workspace and made available as outputs for your Gith
 ### Outputs
 
 - `run-id`: The ID of the run that was created.
-- `workspace-outputs`: A JSON object containing the outputs fetched from the specified Terraform Cloud workspace. Output names will match those found in your workspace.
+- `workspace-outputs`: A JSON-stringified object containing the outputs fetched from the specified Terraform Cloud workspace. Output names will match those found in your workspace. Sensitive output values will be redacted from runner logs.
 
 You will need to use `fromJSON()` to parse `workspace-outputs` in your workflow. [Read more about fromJSON()](https://docs.github.com/en/actions/learn-github-actions/expressions#fromjson)
 
