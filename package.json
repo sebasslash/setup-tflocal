@@ -1,6 +1,6 @@
 {
   "name": "terraform-cloud-run",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "A Github action to execute a run on TFC/E workspaces and fetch the workspace outputs.",
   "main": "dist/index.js",
   "scripts": {
@@ -11,7 +11,7 @@
     "prepare": "husky install"
   },
   "author": "Sebastian Rivera",
-  "license": "ISC",
+  "license": "MPL-2.0",
   "devDependencies": {
     "@types/jest": "^29.4.0",
     "@vercel/ncc": "^0.36.1",
