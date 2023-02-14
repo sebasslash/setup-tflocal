@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import MockAdapter from "axios-mock-adapter";
 import { TFEClient, Output } from "./tfe-client";
 

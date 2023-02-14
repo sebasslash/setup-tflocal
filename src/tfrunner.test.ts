@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import { TfRunner } from "./tfrunner";
 import { MockTFEClient, newMockTFEClient } from "./tfe-client.test";
 import * as core from "@actions/core";

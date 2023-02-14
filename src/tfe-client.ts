@@ -1,3 +1,8 @@
+/**
+ * Copyright (c) HashiCorp, Inc.
+ * SPDX-License-Identifier: MPL-2.0
+ */
+
 import axios, { AxiosInstance } from "axios";
 import * as querystring from "querystring";
 
